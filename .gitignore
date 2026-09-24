@@ -1,0 +1,22 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+
+# SSH / TLS keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Python caches and local tooling
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
