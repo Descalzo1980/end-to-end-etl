@@ -33,7 +33,8 @@ The project currently includes:
 * Python data generator
 * Dockerized environment
 * Apache Airflow
-* Airflow DAG for data generation and PostgreSQL validation
+* ClickHouse as a data warehouse
+* Airflow DAG for data generation, PostgreSQL validation and loading data into ClickHouse
 
 Current Airflow pipeline:
 
@@ -41,9 +42,11 @@ Current Airflow pipeline:
 generate_data
       ↓
 check_postgres
+      ↓
+load_users_to_clickhouse
 ```
 
-The pipeline generates test data in PostgreSQL and then validates the loaded data.
+The pipeline currently generates test data in PostgreSQL, validates the loaded data and loads the `users` table into ClickHouse.
 
 ## Project Structure
 
@@ -90,11 +93,12 @@ etl_pipeline
 * [x] Docker environment
 * [x] Apache Airflow
 * [x] Basic Airflow ETL DAG
-* [ ] Extract data from PostgreSQL
-* [ ] Load data into ClickHouse
+* [x] Extract data from PostgreSQL
+* [x] Load data into ClickHouse
 * [ ] Transform data with SQL
 * [ ] Build data marts
 * [ ] Add dbt
 * [ ] Add Apache Superset
 * [ ] Improve data quality checks
+* [ ] Make the pipeline incremental
 * [ ] Make the pipeline idempotent
