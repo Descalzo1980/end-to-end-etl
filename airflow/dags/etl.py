@@ -169,6 +169,86 @@ def get_watermark():
     print(f"Current watermark: {watermark}")
     return watermark
 
+def build_daily_sales():
+    # Получаем агрегированные данные из PostgreSQL
+    connection = psycopg.connect(
+        host="postgres",
+        port=5432,
+        dbname="shop",
+        user="etl_user",
+        password="etl_password",
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                o.created_at::date AS sale_date,
+                COUNT(DISTINCT o.id) AS orders_count,
+                SUM(oi.quantity) AS items_count,
+                SUM(oi.quantity * oi.price) AS revenue
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            WHERE o.status = 'completed'
+            GROUP BY o.created_at::date
+            ORDER BY sale_date
+        """)
+
+        rows = cursor.fetchall()
+
+    connection.close()
+
+    print(f"Daily sales rows: {len(rows)}")
+
+    # Пересоздаём витрину в ClickHouse
+    truncate_query = "TRUNCATE TABLE shop_dwh.daily_sales"
+
+    request = Request(
+        "http://clickhouse:8123/",
+        data=truncate_query.encode(),
+        headers={
+            "Authorization": "Basic "
+            + base64.b64encode(b"etl:etl_password").decode(),
+        },
+        method="POST",
+    )
+
+    with urlopen(request) as response:
+        response.read()
+
+    # Загружаем новую версию витрины
+    query = """
+        INSERT INTO shop_dwh.daily_sales
+        (sale_date, orders_count, items_count, revenue)
+        FORMAT JSONEachRow
+    """
+
+    data = "\n".join(
+        [
+            (
+                f'{{"sale_date":"{row[0]}",'
+                f'"orders_count":{row[1]},'
+                f'"items_count":{row[2]},'
+                f'"revenue":{row[3]}}}'
+            )
+            for row in rows
+        ]
+    )
+
+    request = Request(
+        "http://clickhouse:8123/",
+        data=(query + data).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Basic "
+            + base64.b64encode(b"etl:etl_password").decode(),
+        },
+        method="POST",
+    )
+
+    with urlopen(request) as response:
+        response.read()
+
+    print("Daily sales loaded to ClickHouse")
 
 with DAG(
     dag_id="etl_pipeline",
@@ -201,6 +281,10 @@ with DAG(
     load_incremental_task = PythonOperator(
     task_id="load_incremental",
     python_callable=load_incremental,
-    )   
+    )
+    build_daily_sales_task = PythonOperator(
+    task_id="build_daily_sales",
+    python_callable=build_daily_sales,
+    )
 
-    generate_data >> check_postgres_task >> get_watermark_task >> use_watermark_task >> load_incremental_task
+    generate_data >> check_postgres_task >> load_incremental_task >> build_daily_sales_task
