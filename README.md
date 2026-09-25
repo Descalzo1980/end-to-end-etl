@@ -34,7 +34,9 @@ The project currently includes:
 * Dockerized environment
 * Apache Airflow
 * ClickHouse as a data warehouse
-* Airflow DAG for data generation, PostgreSQL validation and loading data into ClickHouse
+* Incremental loading from PostgreSQL to ClickHouse
+* SQL transformations
+* `daily_sales` data mart
 
 Current Airflow pipeline:
 
@@ -43,10 +45,19 @@ generate_data
       ↓
 check_postgres
       ↓
-load_users_to_clickhouse
+load_incremental
+      ↓
+build_daily_sales
 ```
 
-The pipeline currently generates test data in PostgreSQL, validates the loaded data and loads the `users` table into ClickHouse.
+The pipeline generates test data in PostgreSQL, incrementally loads changed users into ClickHouse and builds a daily sales data mart.
+
+The `daily_sales` data mart contains:
+
+* `sale_date` — sales date
+* `orders_count` — number of completed orders
+* `items_count` — number of sold items
+* `revenue` — total sales revenue
 
 ## Project Structure
 
@@ -86,6 +97,26 @@ The main DAG is:
 etl_pipeline
 ```
 
+## Data Mart
+
+The project currently contains the following data mart in ClickHouse:
+
+```text
+shop_dwh.daily_sales
+```
+
+Example:
+
+```text
+sale_date   | orders_count | items_count | revenue
+------------+--------------+-------------+---------
+2026-09-23  | 28           | 213         | 53360.22
+2026-09-24  | 858          | 6269        | 1564636.51
+2026-09-25  | 6            | 60          | 12685.93
+```
+
+The data mart is built from PostgreSQL `orders` and `order_items` tables using SQL aggregation.
+
 ## Roadmap
 
 * [x] PostgreSQL source database
@@ -95,10 +126,11 @@ etl_pipeline
 * [x] Basic Airflow ETL DAG
 * [x] Extract data from PostgreSQL
 * [x] Load data into ClickHouse
-* [ ] Transform data with SQL
-* [ ] Build data marts
+* [x] Incremental loading
+* [x] Transform data with SQL
+* [x] Build `daily_sales` data mart
 * [ ] Add dbt
 * [ ] Add Apache Superset
 * [ ] Improve data quality checks
-* [ ] Make the pipeline incremental
-* [ ] Make the pipeline idempotent
+* [ ] Make the data mart incremental
+* [ ] Make the pipeline fully idempotent
