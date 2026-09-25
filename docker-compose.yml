@@ -52,8 +52,50 @@ services:
     container_name: etl_generator
     depends_on:
       - postgres
+  superset-db:
+    image: postgres:16
+    container_name: etl_superset_db
+    environment:
+      POSTGRES_DB: superset
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: superset_password
+    volumes:
+      - superset_db_data:/var/lib/postgresql/data
+
+  superset:
+    build: ./superset
+    container_name: etl_superset
+    depends_on:
+      - superset-db
+      - clickhouse
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: "change-me-for-local-project"
+      DATABASE_DB: superset
+      DATABASE_HOST: superset-db
+      DATABASE_PASSWORD: superset_password
+      DATABASE_USER: superset
+      DATABASE_PORT: 5432
+    command: >
+      /bin/sh -c "
+      superset db upgrade &&
+      superset fab create-admin
+      --username admin
+      --firstname Admin
+      --lastname Admin
+      --email admin@example.com
+      --password admin || true &&
+      superset init &&
+      gunicorn
+      --bind 0.0.0.0:8088
+      --workers 2
+      --timeout 120
+      'superset.app:create_app()'
+      "
 
 volumes:
   postgres_data:
   clickhouse_data:
   airflow_postgres_data:
+  superset_db_data:
